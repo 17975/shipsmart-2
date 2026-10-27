@@ -60,13 +60,13 @@ handled separately by the Flask/TensorFlow/CLIP server on Render; GitHub Pages
 cannot run Python or the classifier itself.
 
 1. Create a GitHub repository and upload this project's files, including
-   `.github/workflows/pages.yml`, `docs/`, `Dockerfile`, `render.yaml`,
-   `requirements.txt`, `app.py`, and `model/food_classifier.h5` plus
-   `model/class_names.json`. Do not upload `.venv/`, `dataset/`, or
-   `dataset_split/`.
-2. Push the files to the repository's `main` or `master` branch. In the
-   repository's **Settings → Pages**, set the build and deployment source to
-   **GitHub Actions**. The workflow deploys `docs/` and publishes the Pages URL.
+   `docs/`, `Dockerfile`, `render.yaml`, `requirements.txt`, `app.py`, and
+   `model/food_classifier.h5` plus `model/class_names.json`. Do not upload
+   `.venv/`, `dataset/`, or `dataset_split/`.
+2. Push the files to the repository's `main` branch. In the repository's
+   **Settings → Pages**, set the source to **Deploy from a branch**, select
+   `main` and the `/docs` folder, and save. GitHub Pages will publish the
+   static website from `docs/index.html`.
 3. In Render, create a Blueprint from that repository and deploy the `shipsmart`
    web service defined in `render.yaml`. The Standard instance is selected
    because the model server used about 1.1 GB of memory on this computer.
