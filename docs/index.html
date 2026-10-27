@@ -73,6 +73,9 @@
 <div style="background:#e6f4ea;border:1px solid #2f6f4f;color:#1e4d33;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;">
     ✅ Recognizes common foods, including items not in the original training photos, such as onions and potatoes.
 </div>
+<div id="serverStatus" role="status" style="background:#fff4e5;border:1px solid #c98a1f;color:#7a5310;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;">
+    Connecting to the prediction server…
+</div>
 
 <div class="card">
     <h3>Upload an Image</h3>
@@ -110,6 +113,7 @@
 const API_BASE_URL = location.hostname.endsWith(".github.io")
     ? "https://shipsmart.onrender.com"
     : location.origin;
+const API_TIMEOUT_MS = 20000;
 let capturedBlob = null;
 
 const fileInput = document.getElementById("fileInput");
@@ -122,6 +126,38 @@ const predictBtn = document.getElementById("predictBtn");
 const resultDiv = document.getElementById("result");
 const confidenceList = document.getElementById("confidenceList");
 const logBody = document.getElementById("logBody");
+const serverStatus = document.getElementById("serverStatus");
+
+async function fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function checkServer() {
+    serverStatus.textContent = "Connecting to the prediction server…";
+    try {
+        const response = await fetchWithTimeout(`${API_BASE_URL}/health`);
+        if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+        const health = await response.json();
+        if (health.status !== "ok") throw new Error("The prediction server is not ready.");
+        serverStatus.style.background = "#e6f4ea";
+        serverStatus.style.borderColor = "#2f6f4f";
+        serverStatus.style.color = "#1e4d33";
+        serverStatus.textContent = "✅ Prediction server is connected. You can classify photos.";
+        return true;
+    } catch (error) {
+        serverStatus.style.background = "#fff4e5";
+        serverStatus.style.borderColor = "#c98a1f";
+        serverStatus.style.color = "#7a5310";
+        serverStatus.textContent = "⚠️ The prediction server is not online yet. GitHub Pages hosts this page, but the model server must also be deployed before photo classification will work. Try again later or contact the site owner.";
+        return false;
+    }
+}
 
 fileInput.addEventListener("change", () => {
     const file = fileInput.files[0];
@@ -168,9 +204,13 @@ predictBtn.addEventListener("click", async () => {
 
     resultDiv.textContent = "Classifying...";
     confidenceList.innerHTML = "";
+    predictBtn.disabled = true;
 
     try {
-        const res = await fetch(`${API_BASE_URL}/predict`, { method: "POST", body: formData });
+        const res = await fetchWithTimeout(`${API_BASE_URL}/predict`, {
+            method: "POST",
+            body: formData,
+        });
         const data = await res.json();
 
         if (!res.ok || data.error) {
@@ -201,13 +241,19 @@ predictBtn.addEventListener("click", async () => {
 
         refreshLog();
     } catch (err) {
-        resultDiv.textContent = "Request failed: " + err.message + ". The prediction server may still be starting.";
+        if (err.name === "AbortError") {
+            resultDiv.textContent = "The prediction server did not respond within 20 seconds. It may be offline or starting; check the server status above and try again.";
+        } else {
+            resultDiv.textContent = "Request failed: " + err.message + ". Check the prediction server status above.";
+        }
+    } finally {
+        predictBtn.disabled = false;
     }
 });
 
 async function refreshLog() {
     try {
-        const res = await fetch(`${API_BASE_URL}/pantry_log`);
+        const res = await fetchWithTimeout(`${API_BASE_URL}/pantry_log`);
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         const data = await res.json();
         logBody.innerHTML = "";
@@ -228,7 +274,7 @@ async function refreshLog() {
 document.getElementById("refreshLogBtn").addEventListener("click", refreshLog);
 document.getElementById("clearLogBtn").addEventListener("click", async () => {
     try {
-        const res = await fetch(`${API_BASE_URL}/clear_log`, { method: "POST" });
+        const res = await fetchWithTimeout(`${API_BASE_URL}/clear_log`, { method: "POST" });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         await refreshLog();
     } catch (err) {
@@ -236,6 +282,7 @@ document.getElementById("clearLogBtn").addEventListener("click", async () => {
     }
 });
 
+checkServer();
 refreshLog();
 </script>
 
